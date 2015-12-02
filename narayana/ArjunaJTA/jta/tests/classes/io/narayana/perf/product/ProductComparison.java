@@ -37,6 +37,7 @@ import com.arjuna.ats.jta.xa.performance.JMHConfigJTA;
 
 import com.arjuna.ats.arjuna.common.CoreEnvironmentBeanException;
 
+import java.util.Calendar;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
@@ -124,9 +125,15 @@ abstract public class ProductComparison {
     }
 
     protected void doWork(ProductInterface product) throws Exception {
+        long millis = System.currentTimeMillis();
         try {
             worker.doWork();
         } catch (Exception e) {
+            System.out.printf("%s: Product %s: EXCEPTION %s (time: %s)%n",
+                    Calendar.getInstance().getTime().toString(),
+                    product.getName(),
+                    e.getMessage(),
+                    (System.currentTimeMillis() - millis) / 1000);
             if (errorCount.incrementAndGet() > MAX_ERRORS) {
                 e.printStackTrace();
 
