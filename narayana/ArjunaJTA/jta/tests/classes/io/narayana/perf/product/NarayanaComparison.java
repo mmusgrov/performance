@@ -88,12 +88,17 @@ public class NarayanaComparison extends ProductComparison {
             } catch (CoreEnvironmentBeanException e) {
                 e.printStackTrace();
             }
-            HornetqJournalEnvironmentBean hornetqJournalEnvironmentBean = BeanPopulator.getDefaultInstance(
-                HornetqJournalEnvironmentBean.class
+
+            if (Boolean.getBoolean("useHQStore")) {
+                HornetqJournalEnvironmentBean hornetqJournalEnvironmentBean = BeanPopulator.getDefaultInstance(
+                        HornetqJournalEnvironmentBean.class
                 );
-            hornetqJournalEnvironmentBean.setAsyncIO(true);
-            hornetqJournalEnvironmentBean.setStoreDir(storeDir);//"HornetqObjectStore");
-            BeanPopulator.getDefaultInstance(ObjectStoreEnvironmentBean.class).setObjectStoreType("com.arjuna.ats.internal.arjuna.objectstore.hornetq.HornetqObjectStoreAdaptor");
+                hornetqJournalEnvironmentBean.setAsyncIO(true);
+                hornetqJournalEnvironmentBean.setStoreDir(storeDir);//"HornetqObjectStore");
+                BeanPopulator.getDefaultInstance(ObjectStoreEnvironmentBean.class).setObjectStoreType(
+                        "com.arjuna.ats.internal.arjuna.objectstore.hornetq.HornetqObjectStoreAdaptor");
+            }
+
             ut = com.arjuna.ats.jta.UserTransaction.userTransaction();
             tm = com.arjuna.ats.jta.TransactionManager.transactionManager();
         }
