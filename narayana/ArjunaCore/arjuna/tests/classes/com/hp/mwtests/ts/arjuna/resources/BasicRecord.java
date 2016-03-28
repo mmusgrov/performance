@@ -29,7 +29,7 @@
  * $Id: BasicRecord.java 2342 2006-03-30 13:06:17Z  $
  */
 
-package com.hp.mwtests.ts.arjuna.performance;
+package com.hp.mwtests.ts.arjuna.resources;
 
 import java.io.PrintWriter;
 

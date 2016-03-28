@@ -31,23 +31,27 @@
 
 package com.hp.mwtests.ts.arjuna.performance;
 
-import org.junit.Test;
-
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.runner.RunnerException;
-import org.openjdk.jmh.runner.options.CommandLineOptionException;
-
+import com.arjuna.ats.arjuna.common.CoordinatorEnvironmentBean;
 import com.arjuna.ats.arjuna.common.ObjectStoreEnvironmentBean;
-import com.arjuna.ats.internal.arjuna.objectstore.VolatileStore;
+import com.arjuna.ats.internal.arjuna.objectstore.TwoPhaseVolatileStore;
 import com.arjuna.common.internal.util.propertyservice.BeanPopulator;
 import com.hp.mwtests.ts.arjuna.JMHConfigCore;
 
-public class Performance1 extends PerformanceBase {
+import org.junit.Test;
+import org.openjdk.jmh.annotations.Benchmark;
+
+import org.openjdk.jmh.runner.RunnerException;
+import org.openjdk.jmh.runner.options.CommandLineOptionException;
+
+
+public class Performance2 extends PerformanceBase {
 //    @Setup(Level.Trial)
 //    @BeforeClass
     static void setup() {
         try {
-            BeanPopulator.getDefaultInstance(ObjectStoreEnvironmentBean.class).setObjectStoreType(VolatileStore.class.getName());
+            BeanPopulator.getDefaultInstance(CoordinatorEnvironmentBean.class).setCommitOnePhase(false);
+            BeanPopulator.getDefaultInstance(ObjectStoreEnvironmentBean.class).setObjectStoreType(TwoPhaseVolatileStore.class.getName());
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -58,7 +62,7 @@ public class Performance1 extends PerformanceBase {
     }
 
     public static void main(String[] args) throws RunnerException, CommandLineOptionException {
-        JMHConfigCore.runJTABenchmark(Performance1.class.getSimpleName(), args);
+        JMHConfigCore.runJTABenchmark(Performance2.class.getSimpleName(), args);
     }
 
     @Benchmark

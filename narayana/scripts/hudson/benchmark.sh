@@ -98,11 +98,12 @@ function run_benchmarks {
 # define which benchmarks to run. The syntax is:
 # <maven module directory> <jmh test pattern> <the expected number of benchmarks>
 # the need for the third field is because JMH does not return error codes for benchmark failures
-BM1="ArjunaCore/arjuna com.hp.mwtests.ts.arjuna.performance.Performance1.* 2"
+BM1="ArjunaCore/arjuna com.hp.mwtests.ts.arjuna.performance.Performance.* 12"
 #ArjunaCore/arjuna/tests/classes/com/hp/mwtests/ts/arjuna/performance/Performance1.java
 BM2="ArjunaCore/arjuna com.hp.mwtests.ts.arjuna.atomicaction.CheckedActionTest.* 2"
 #ArjunaCore/arjuna/tests/classes/com/hp/mwtests/ts/arjuna/atomicaction/CheckedActionTest.java
 BM3="ArjunaJTA/jta com.arjuna.ats.jta.xa.performance.JTAStoreTests.* 1"
+BM3b="ArjunaJTA/jta com.arjuna.ats.jta.xa.performance.onephase.* 4"
 #ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/JTAStoreTests.java
 BM4a="ArjunaJTA/jta io.narayana.perf.product.BitronixComparison.* 1"
 BM4b="ArjunaJTA/jta io.narayana.perf.product.GeronimoComparison.* 1"
@@ -124,7 +125,8 @@ cd $BMDIR
 res=0
 case $# in
 0)
-   for  i in "$BM4a" "$BM4b" "$BM4c" "$BM4d" "$BM4e" "$BM1" "$BM2" "$BM3" "$BM5"; do
+   #for  i in "$BM3b"; do
+   for  i in "$BM4a" "$BM4b" "$BM4c" "$BM4d" "$BM4e" "$BM1" "$BM2" "$BM3" "$BM3b" "$BM5"; do
      IFS=' ' read -a bms <<< "$i"
      cd $BMDIR
      mvn -f "${bms[0]}/pom.xml" clean install -DskipTests # build the benchmarks

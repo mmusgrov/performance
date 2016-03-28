@@ -31,34 +31,20 @@
 
 package com.hp.mwtests.ts.arjuna.performance;
 
-import org.junit.Test;
-
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.runner.RunnerException;
-import org.openjdk.jmh.runner.options.CommandLineOptionException;
-
 import com.arjuna.ats.arjuna.common.ObjectStoreEnvironmentBean;
 import com.arjuna.ats.internal.arjuna.objectstore.VolatileStore;
 import com.arjuna.common.internal.util.propertyservice.BeanPopulator;
 import com.hp.mwtests.ts.arjuna.JMHConfigCore;
+import org.junit.Test;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.runner.RunnerException;
+import org.openjdk.jmh.runner.options.CommandLineOptionException;
 
-public class Performance1 extends PerformanceBase {
-//    @Setup(Level.Trial)
-//    @BeforeClass
-    static void setup() {
-        try {
-            BeanPopulator.getDefaultInstance(ObjectStoreEnvironmentBean.class).setObjectStoreType(VolatileStore.class.getName());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    static {
-        setup();
-    }
+public class Performance3 extends PerformanceBase {
+    // use the default transaction log storage
 
     public static void main(String[] args) throws RunnerException, CommandLineOptionException {
-        JMHConfigCore.runJTABenchmark(Performance1.class.getSimpleName(), args);
+        JMHConfigCore.runJTABenchmark(Performance3.class.getSimpleName(), args);
     }
 
     @Benchmark
