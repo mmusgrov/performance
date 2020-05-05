@@ -37,7 +37,7 @@ public class ShadowNoFileLockStoreBenchmark extends JTAStoreBase {
 
     @Test
     @Benchmark
-    public void testShadowNoFileLockStore(Blackhole bh) {
+    public void test(Blackhole bh) {
         bh.consume(super.jtaTest());
     }
 }

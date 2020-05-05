@@ -37,7 +37,7 @@ public class VolatileStoreBenchmark extends JTAStoreBase {
 
     @Test
     @Benchmark
-    public void testVolatileStore(Blackhole bh) {
+    public void test(Blackhole bh) {
         bh.consume(super.jtaTest());
     }
 }

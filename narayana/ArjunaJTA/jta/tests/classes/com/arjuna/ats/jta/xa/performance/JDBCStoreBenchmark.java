@@ -58,7 +58,7 @@ public class JDBCStoreBenchmark extends JTAStoreBase {
 
     @Test
     @Benchmark
-    public void testJDBCStore(Blackhole bh) {
+    public void test(Blackhole bh) {
         bh.consume(super.jtaTest());
     }
 }
