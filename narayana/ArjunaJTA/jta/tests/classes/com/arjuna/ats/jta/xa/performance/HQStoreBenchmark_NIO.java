@@ -1,0 +1,54 @@
+/*
+ * Copyright The Narayana Authors
+ * SPDX short identifier: Apache-2.0
+ */
+
+package com.arjuna.ats.jta.xa.performance;
+
+import com.arjuna.ats.arjuna.common.CoreEnvironmentBeanException;
+import com.arjuna.ats.internal.arjuna.objectstore.hornetq.HornetqJournalEnvironmentBean;
+import com.arjuna.ats.internal.arjuna.objectstore.hornetq.HornetqObjectStoreAdaptor;
+import com.arjuna.common.internal.util.propertyservice.BeanPopulator;
+import jakarta.transaction.HeuristicMixedException;
+import jakarta.transaction.HeuristicRollbackException;
+import jakarta.transaction.NotSupportedException;
+import jakarta.transaction.RollbackException;
+import jakarta.transaction.SystemException;
+import org.junit.BeforeClass;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.infra.Blackhole;
+
+import java.nio.file.Paths;
+
+@State(Scope.Benchmark)
+public class HQStoreBenchmark_NIO extends JTAStoreBase {
+
+    @Setup(Level.Trial)
+    @BeforeClass
+    public static void setup() throws CoreEnvironmentBeanException {
+        HornetqJournalEnvironmentBean hornetqJournalEnvironmentBean = BeanPopulator.getDefaultInstance(HornetqJournalEnvironmentBean.class);
+        cleanStore(Paths.get(hornetqJournalEnvironmentBean.getStoreDir()).toFile());
+        // Force NIO (disable AIO)
+        hornetqJournalEnvironmentBean.setAsyncIO(false);
+        hornetqJournalEnvironmentBean.setSyncDeletes(false);
+        hornetqJournalEnvironmentBean.setBufferFlushesPerSecond(300);
+        hornetqJournalEnvironmentBean.setMaxIO(500);
+        JTAStoreBase.setup(HornetqObjectStoreAdaptor.class.getName());
+    }
+
+    @TearDown
+    public static void tearDown() {
+        String storeDir = BeanPopulator.getDefaultInstance(HornetqJournalEnvironmentBean.class).getStoreDir();
+        cleanStore(Paths.get(storeDir).toFile());
+    }
+
+    @Benchmark
+    public void testHQStore(Blackhole bh) throws HeuristicRollbackException, SystemException, HeuristicMixedException, NotSupportedException, RollbackException {
+        bh.consume(super.jtaTest());
+    }
+}

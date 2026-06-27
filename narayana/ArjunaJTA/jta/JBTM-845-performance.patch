@@ -1,0 +1,758 @@
+From e6c28a65e288dcc17a9a48766fcaced3d41599aa Mon Sep 17 00:00:00 2001
+From: Michael Musgrove <mmusgrov@redhat.com>
+Date: Mon, 20 Apr 2026 14:45:53 +0100
+Subject: [PATCH] JBTM-845 infinispan object store example
+
+---
+ .../InfinispanStoreComparison.java            |  87 ++++++++
+ narayana/ArjunaJTA/jta/pom.xml                |  16 +-
+ .../performance/DiskSlotsStoreBenchmark.java  |  82 ++++++++
+ .../performance/InfinispanSlotsStoreBase.java | 160 +++++++++++++++
+ .../InfinispanSlotsStoreBenchmark.java        |  96 +++++++++
+ .../InfinispanSlotsStoreRestartBenchmark.java | 193 ++++++++++++++++++
+ narayana/pom.xml                              |  12 +-
+ 7 files changed, 638 insertions(+), 8 deletions(-)
+ create mode 100644 narayana/ArjunaCore/arjuna/tests/classes/com/hp/mwtests/ts/arjuna/performance/InfinispanStoreComparison.java
+ create mode 100644 narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/DiskSlotsStoreBenchmark.java
+ create mode 100644 narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreBase.java
+ create mode 100644 narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreBenchmark.java
+ create mode 100644 narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreRestartBenchmark.java
+
+diff --git a/narayana/ArjunaCore/arjuna/tests/classes/com/hp/mwtests/ts/arjuna/performance/InfinispanStoreComparison.java b/narayana/ArjunaCore/arjuna/tests/classes/com/hp/mwtests/ts/arjuna/performance/InfinispanStoreComparison.java
+new file mode 100644
+index 0000000..534749b
+--- /dev/null
++++ b/narayana/ArjunaCore/arjuna/tests/classes/com/hp/mwtests/ts/arjuna/performance/InfinispanStoreComparison.java
+@@ -0,0 +1,87 @@
++package com.hp.mwtests.ts.arjuna.performance;
++
++import com.arjuna.ats.arjuna.AtomicAction;
++import org.openjdk.jmh.annotations.Benchmark;
++import org.openjdk.jmh.annotations.Fork;
++import org.openjdk.jmh.annotations.Level;
++import org.openjdk.jmh.annotations.Measurement;
++import org.openjdk.jmh.annotations.Mode;
++import org.openjdk.jmh.annotations.OutputTimeUnit;
++import org.openjdk.jmh.annotations.Scope;
++import org.openjdk.jmh.annotations.Setup;
++import org.openjdk.jmh.annotations.State;
++import org.openjdk.jmh.annotations.TearDown;
++import org.openjdk.jmh.annotations.Threads;
++import org.openjdk.jmh.annotations.Warmup;
++import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
++import org.openjdk.jmh.runner.Runner;
++import org.openjdk.jmh.runner.RunnerException;
++import org.openjdk.jmh.runner.options.Options;
++import org.openjdk.jmh.runner.options.OptionsBuilder;
++import org.openjdk.jmh.runner.options.TimeValue;
++
++import java.util.concurrent.TimeUnit;
++
++import static org.openjdk.jmh.runner.Defaults.THREADS;
++
++@OutputTimeUnit(TimeUnit.SECONDS)
++@Threads(THREADS)
++@Fork(InfinispanStoreComparison.FORKS) // run the benchmark in two processes/JVMs
++@Warmup(iterations = InfinispanStoreComparison.ITERATIONS, time = InfinispanStoreComparison.TIME_PER_ITER, timeUnit = TimeUnit.SECONDS)
++@Measurement(iterations = InfinispanStoreComparison.ITERATIONS, time = InfinispanStoreComparison.TIME_PER_ITER, timeUnit = TimeUnit.SECONDS)
++public class InfinispanStoreComparison {
++    static final int THREADS = 240;//10;//_000; //Threads.MAX;
++    static final int FORKS = 1;
++    static final int ITERATIONS = 5;
++    static final int TIME_PER_ITER = 2;
++
++    public static void main(String[] args) throws RunnerException {
++        // Sometimes it is useful to run the benchmark directly from an IDE:
++        Options opt = new OptionsBuilder()
++                .include(InfinispanStoreComparison.class.getSimpleName() + ".storeBenchmark")
++
++                .timeUnit(TimeUnit.SECONDS)
++                .threads(THREADS)
++                .forks(FORKS)
++                .mode(Mode.Throughput)
++                .warmupIterations(1)
++                .warmupTime(TimeValue.seconds(1))
++                .measurementIterations(ITERATIONS)
++                .measurementTime(TimeValue.seconds(TIME_PER_ITER))
++                .param("networkDelay", "0") // don't simulate network using MS_DELAY
++                .shouldDoGC(true)
++                // use JFR as the profiler, the recording will appear in the User working directory with the
++                // name "<package name>-xxx/profile.jfr", which you can change to "wherever" using
++                // addProfiler(JavaFlightRecorderProfiler.class, "dir=wherever"). Java Flight Recorder data files
++                // can be viewed with the jmc graphical tool or with the jfr command line tool which is in the java
++                // bin directory
++                .addProfiler(JavaFlightRecorderProfiler.class)
++                .jvmArgs("-Djmh.executor=FJP") // ForkJoinPool
++                .build();
++
++        new Runner(opt).run();
++    }
++
++    @State(Scope.Benchmark)
++    public static class BenchmarkState {
++        @Setup(Level.Trial)
++        public void doSetup() {
++        }
++
++        @TearDown(Level.Trial)
++        public void tearDown() {
++        }
++    }
++
++    @Benchmark
++    public void storeBenchmark(BenchmarkState state) {
++        twoPhase(state);
++    }
++
++    private void twoPhase(BenchmarkState benchmarkState) {
++        AtomicAction A = new AtomicAction();
++
++        A.begin();
++        A.commit();
++    }
++}
+diff --git a/narayana/ArjunaJTA/jta/pom.xml b/narayana/ArjunaJTA/jta/pom.xml
+index fc1a55d..bf78686 100644
+--- a/narayana/ArjunaJTA/jta/pom.xml
++++ b/narayana/ArjunaJTA/jta/pom.xml
+@@ -26,8 +26,8 @@
+     </prerequisites>
+     <properties>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+-        <maven.compiler.target>11</maven.compiler.target>
+-        <maven.compiler.source>11</maven.compiler.source>
++        <maven.compiler.target>25</maven.compiler.target>
++        <maven.compiler.source>25</maven.compiler.source>
+ 
+         <version.org.jboss.logging.jboss-logging>3.2.1.Final</version.org.jboss.logging.jboss-logging>
+ 
+@@ -105,6 +105,10 @@
+                             <name>com.atomikos.icatch.file</name>
+                             <value>${project.build.directory}/classes/atomikos.properties</value>
+                         </property>
++                        <property>
++                            <name>narayana.storeLocation</name>
++                            <value>${project.build.directory}</value>
++                        </property>
+                     </systemProperties>
+ 
+                     <includes>
+@@ -118,10 +122,6 @@
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-compiler-plugin</artifactId>
+-                <configuration>
+-                    <source>11</source>
+-                    <target>11</target>
+-                </configuration>
+             </plugin>
+ 
+         </plugins>
+@@ -178,6 +178,10 @@
+             <groupId>org.apache.activemq</groupId>
+             <artifactId>artemis-journal</artifactId>
+         </dependency>
++        <dependency>
++            <groupId>org.infinispan</groupId>
++            <artifactId>infinispan-core</artifactId>
++        </dependency>
+         <dependency>
+             <groupId>jakarta.transaction</groupId>
+             <artifactId>jakarta.transaction-api</artifactId>
+diff --git a/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/DiskSlotsStoreBenchmark.java b/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/DiskSlotsStoreBenchmark.java
+new file mode 100644
+index 0000000..e6753f3
+--- /dev/null
++++ b/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/DiskSlotsStoreBenchmark.java
+@@ -0,0 +1,82 @@
++/*
++ * Copyright The Narayana Authors
++ * SPDX short identifier: Apache-2.0
++ */
++
++package com.arjuna.ats.jta.xa.performance;
++
++import com.arjuna.ats.arjuna.common.CoreEnvironmentBeanException;
++import com.arjuna.ats.internal.arjuna.objectstore.slot.DiskSlots;
++import com.arjuna.ats.internal.arjuna.objectstore.slot.SlotStoreAdaptor;
++import com.arjuna.ats.internal.arjuna.objectstore.slot.SlotStoreEnvironmentBean;
++import com.arjuna.common.internal.util.propertyservice.BeanPopulator;
++import jakarta.transaction.HeuristicMixedException;
++import jakarta.transaction.HeuristicRollbackException;
++import jakarta.transaction.NotSupportedException;
++import jakarta.transaction.RollbackException;
++import jakarta.transaction.SystemException;
++import org.junit.BeforeClass;
++import org.openjdk.jmh.annotations.Benchmark;
++import org.openjdk.jmh.annotations.Level;
++import org.openjdk.jmh.annotations.Mode;
++import org.openjdk.jmh.annotations.Scope;
++import org.openjdk.jmh.annotations.Setup;
++import org.openjdk.jmh.annotations.State;
++import org.openjdk.jmh.infra.Blackhole;
++import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
++import org.openjdk.jmh.runner.Runner;
++import org.openjdk.jmh.runner.RunnerException;
++import org.openjdk.jmh.runner.options.Options;
++import org.openjdk.jmh.runner.options.OptionsBuilder;
++import org.openjdk.jmh.runner.options.TimeValue;
++
++import java.util.concurrent.TimeUnit;
++
++@State(Scope.Benchmark)
++public class DiskSlotsStoreBenchmark extends JTAStoreBase {
++    static final int THREADS = 240;//10;//_000; //Threads.MAX;
++    static final int FORKS = 1;
++    static final int ITERATIONS = 5;
++    static final int TIME_PER_ITER = 2;
++
++    public static void main(String[] args) throws RunnerException {
++        // Sometimes it is useful to run the benchmark directly from an IDE:
++        Options opt = new OptionsBuilder()
++                .include(InfinispanSlotsStoreBenchmark.class.getSimpleName() + ".testInfinispanStore")
++
++                .timeUnit(TimeUnit.SECONDS)
++                .threads(THREADS)
++                .forks(FORKS)
++                .mode(Mode.Throughput)
++                .warmupIterations(1)
++                .warmupTime(TimeValue.seconds(1))
++                .measurementIterations(ITERATIONS)
++                .measurementTime(TimeValue.seconds(TIME_PER_ITER))
++                .param("networkDelay", "0") // don't simulate network using MS_DELAY
++                .shouldDoGC(true)
++                // use JFR as the profiler, the recording will appear in the User working directory with the
++                // name "<package name>-xxx/profile.jfr", which you can change to "wherever" using
++                // addProfiler(JavaFlightRecorderProfiler.class, "dir=wherever"). Java Flight Recorder data files
++                // can be viewed with the jmc graphical tool or with the jfr command line tool which is in the java
++                // bin directory
++                .addProfiler(JavaFlightRecorderProfiler.class)
++                .jvmArgs("-Djmh.executor=FJP") // ForkJoinPool
++                .build();
++
++        new Runner(opt).run();
++    }
++
++    @Setup(Level.Trial)
++    @BeforeClass
++    public static void setup() throws CoreEnvironmentBeanException {
++        JTAStoreBase.setup(SlotStoreAdaptor.class.getName());
++        SlotStoreEnvironmentBean configBean = BeanPopulator.getDefaultInstance(SlotStoreEnvironmentBean.class);
++
++        configBean.setBackingSlotsClassName(DiskSlots.class.getName());
++    }
++
++    @Benchmark
++    public void testDiskSlotsStore(Blackhole bh) throws HeuristicRollbackException, SystemException, HeuristicMixedException, NotSupportedException, RollbackException {
++        bh.consume(super.jtaTest());
++    }
++}
+\ No newline at end of file
+diff --git a/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreBase.java b/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreBase.java
+new file mode 100644
+index 0000000..098796c
+--- /dev/null
++++ b/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreBase.java
+@@ -0,0 +1,160 @@
++/*
++ * Copyright The Narayana Authors
++ * SPDX short identifier: Apache-2.0
++ */
++
++package com.arjuna.ats.jta.xa.performance;
++
++import com.arjuna.ats.internal.arjuna.objectstore.slot.SlotStoreEnvironmentBean;
++import com.arjuna.ats.internal.arjuna.objectstore.slot.infinispan.InfinispanSlotKeyGenerator;
++import com.arjuna.ats.internal.arjuna.objectstore.slot.infinispan.InfinispanSlots;
++import com.arjuna.ats.internal.arjuna.objectstore.slot.infinispan.InfinispanStoreEnvironmentBean;
++import com.arjuna.common.internal.util.propertyservice.BeanPopulator;
++import org.infinispan.Cache;
++import org.infinispan.commons.marshall.WrappedByteArray;
++import org.infinispan.configuration.cache.CacheMode;
++import org.infinispan.configuration.cache.ConfigurationBuilder;
++import org.infinispan.configuration.global.GlobalConfigurationBuilder;
++import org.infinispan.conflict.MergePolicy;
++import org.infinispan.distribution.group.Grouper;
++import org.infinispan.manager.DefaultCacheManager;
++import org.infinispan.partitionhandling.PartitionHandling;
++import org.openjdk.jmh.annotations.Scope;
++import org.openjdk.jmh.annotations.State;
++
++import java.io.IOException;
++import java.lang.invoke.MethodHandles;
++import java.lang.invoke.VarHandle;
++import java.nio.file.Path;
++import java.nio.file.Paths;
++import java.util.concurrent.ConcurrentMap;
++import java.util.concurrent.TimeUnit;
++
++@State(Scope.Benchmark)
++public class InfinispanSlotsStoreBase extends JTAStoreBase {
++    // the name of the cluster and the shared cache used for the object store
++    static final String CLUSTER_NAME = "objectStoreCluster";
++    // location of the file system store (with surefire it will be the build directory)
++    static final String STORE_DIR = System.getProperty("narayana.storeLocation") + "/infinispan-caches";
++
++
++    // record bringing together various data related to a slot store instance
++    record Store(DefaultCacheManager manager, // the infinispan cache manager
++                 String groupName,
++                 String nodeName, // name of a cluster node
++                 Cache<byte[], byte[]> cache, // the cache for this cluster node
++                 InfinispanStoreEnvironmentBean config, // config for the slot store on this node
++                 InfinispanSlots slots, // slot store
++                 Path path) { // filesystem path where the persistent cache is located
++        public Store(DefaultCacheManager manager, String groupName, String nodeName) {
++            this(
++                    manager,
++                    groupName,
++                    nodeName,
++                    manager.getCache(CLUSTER_NAME),
++                    // manager.administration().getOrCreateCache(CLUSTER_NAME, manager.getDefaultCacheConfiguration()),
++                    new InfinispanStoreEnvironmentBean(),
++                    new InfinispanSlots(),
++                    Paths.get(STORE_DIR + "/" + nodeName)
++            );
++            config.setNodeAddress(manager.getNodeAddress());
++            config.setGroupName(groupName);
++            config.setCacheName(cache.getName());
++            config.setCache(cache);
++            config.setBackingSlots(slots);
++            config.setSlotKeyGeneratorClassName(InfinispanSlotKeyGenerator.class.getName()); // default key generator
++        }
++
++        /*
++         * Stop the cache manager otherwise the network endpoints won't be closed correctly.
++         * This is particularly important with jgroups.
++         */
++        public void stop() {
++            cache().stop();
++            manager.stop();
++        }
++
++        public void start() throws IOException {
++            slots().init(config());
++        }
++    }
++
++    static DefaultCacheManager createCacheManager(String nodeName,
++                                                  CacheMode cacheMode,
++                                                  int numOwners, // used with CacheMode.CacheMode
++                                                  Grouper<WrappedByteArray> grouper,
++                                                  boolean persistence,
++                                                  boolean partitionResilience) {
++        GlobalConfigurationBuilder globalConfig = GlobalConfigurationBuilder.defaultClusteredBuilder();
++
++        globalConfig.transport().nodeName(nodeName).machineId(nodeName)
++                .clusterName(CLUSTER_NAME);//.addProperty("configurationFile", "jgroups.xml");
++
++        var manager = new DefaultCacheManager(globalConfig.build());
++        var storeDir = String.format("%s/%s", STORE_DIR, nodeName);
++
++        // Define the replicated cache configuration
++        ConfigurationBuilder cacheConfig = new ConfigurationBuilder();
++        cacheConfig
++                .clustering()
++                .cacheMode(cacheMode)
++                .remoteTimeout(5, TimeUnit.SECONDS);
++
++        if (numOwners > 0) {
++            cacheConfig
++                    .clustering()
++                    .hash()
++                    .numOwners(numOwners); // number of cluster-wide replicas for each cache entry
++        }
++        if (grouper != null) {
++            cacheConfig
++                    .clustering()
++                    .hash().groups().enabled().addGrouper(grouper);
++        }
++        if (persistence) {
++            cacheConfig
++                    .clustering()
++                    .persistence()
++                    .passivation(false)
++                    .addSoftIndexFileStore()
++                    .dataLocation(storeDir + "/data")
++                    .indexLocation(storeDir + "/index")
++                    .shared(false);
++        }
++        if (partitionResilience) {
++            cacheConfig
++                    .clustering()
++                    .partitionHandling()
++                    .whenSplit(PartitionHandling.DENY_READ_WRITES)
++                    .mergePolicy(MergePolicy.PREFERRED_ALWAYS);
++        }
++
++        manager.defineConfiguration(CLUSTER_NAME, cacheConfig.build());
++
++        return manager;
++    }
++
++    static Store getStore(String nodeName, CacheMode mode, int numOwners, Grouper<WrappedByteArray> grouper, boolean persistence, boolean partitionResilience, String groupName) {
++        DefaultCacheManager manager = createCacheManager(nodeName, mode, numOwners, grouper, persistence, partitionResilience);
++        return new Store(manager, groupName, nodeName);
++    }
++
++    // TODO
++    static void replaceEnvironmentBean(SlotStoreEnvironmentBean bean) throws Throwable {
++        MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(
++                BeanPopulator.class,
++                MethodHandles.lookup()
++        );
++
++        // Get a VarHandle for the private static field
++        VarHandle varHandle = lookup.findStaticVarHandle(
++                BeanPopulator.class,
++                "beanInstances",
++                ConcurrentMap.class
++        );
++
++        ConcurrentMap<String, Object> beanInstances = (ConcurrentMap<String, Object>) varHandle.get();
++
++        beanInstances.put(SlotStoreEnvironmentBean.class.getName(), bean);
++    }
++}
+\ No newline at end of file
+diff --git a/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreBenchmark.java b/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreBenchmark.java
+new file mode 100644
+index 0000000..f2c13e9
+--- /dev/null
++++ b/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreBenchmark.java
+@@ -0,0 +1,96 @@
++/*
++ * Copyright The Narayana Authors
++ * SPDX short identifier: Apache-2.0
++ */
++
++package com.arjuna.ats.jta.xa.performance;
++
++import com.arjuna.ats.arjuna.common.CoreEnvironmentBeanException;
++import com.arjuna.ats.internal.arjuna.objectstore.slot.SlotStoreAdaptor;
++import com.arjuna.ats.internal.arjuna.objectstore.slot.infinispan.InfinispanSlots;
++import jakarta.transaction.HeuristicMixedException;
++import jakarta.transaction.HeuristicRollbackException;
++import jakarta.transaction.NotSupportedException;
++import jakarta.transaction.RollbackException;
++import jakarta.transaction.SystemException;
++import org.infinispan.configuration.cache.CacheMode;
++import org.openjdk.jmh.annotations.Benchmark;
++import org.openjdk.jmh.annotations.Level;
++import org.openjdk.jmh.annotations.Mode;
++import org.openjdk.jmh.annotations.Scope;
++import org.openjdk.jmh.annotations.Setup;
++import org.openjdk.jmh.annotations.State;
++import org.openjdk.jmh.annotations.TearDown;
++import org.openjdk.jmh.infra.Blackhole;
++import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
++import org.openjdk.jmh.runner.Runner;
++import org.openjdk.jmh.runner.RunnerException;
++import org.openjdk.jmh.runner.options.CommandLineOptionException;
++import org.openjdk.jmh.runner.options.Options;
++import org.openjdk.jmh.runner.options.OptionsBuilder;
++import org.openjdk.jmh.runner.options.TimeValue;
++
++import java.util.concurrent.TimeUnit;
++
++@State(Scope.Benchmark)
++public class InfinispanSlotsStoreBenchmark extends InfinispanSlotsStoreBase {
++    // the name of the cluster and the shared cache used for the object store
++    static final String CLUSTER_NAME = "objectStoreCluster";
++
++    static Store store;
++    static final int THREADS = 240;//10;//_000; //Threads.MAX;
++    static final int FORKS = 1;
++    static final int ITERATIONS = 5;
++    static final int TIME_PER_ITER = 2;
++
++    public static void zmain(String[] args) throws RunnerException, CommandLineOptionException, CoreEnvironmentBeanException {
++        JMHConfigJTA.runJTABenchmark(InfinispanSlotsStoreBenchmark.class.getSimpleName(), args);
++    }
++
++    public static void main(String[] args) throws RunnerException {
++        // Sometimes it is useful to run the benchmark directly from an IDE:
++        Options opt = new OptionsBuilder()
++                .include(InfinispanSlotsStoreBenchmark.class.getSimpleName() + ".testWriteThroughCache")
++
++                .timeUnit(TimeUnit.SECONDS)
++                .threads(THREADS)
++                .forks(FORKS)
++                .mode(Mode.Throughput)
++                .warmupIterations(1)
++                .warmupTime(TimeValue.seconds(1))
++                .measurementIterations(ITERATIONS)
++                .measurementTime(TimeValue.seconds(TIME_PER_ITER))
++                .shouldDoGC(true)
++                // use JFR as the profiler, the recording will appear in the User working directory with the
++                // name "<package name>-xxx/profile.jfr", which you can change to "wherever" using
++                // addProfiler(JavaFlightRecorderProfiler.class, "dir=wherever"). Java Flight Recorder data files
++                // can be viewed with the jmc graphical tool or with the jfr command line tool which is in the java
++                // bin directory
++                .addProfiler(JavaFlightRecorderProfiler.class)
++                .jvmArgs("-Djmh.executor=FJP") // ForkJoinPool
++                .build();
++
++        new Runner(opt).run();
++    }
++
++
++    @Setup(Level.Trial)
++    public static void setup() throws Throwable {
++        store = getStore("node1", CacheMode.REPL_SYNC, 3, null, true, false, null);
++        store.config().setBackingSlotsClassName(InfinispanSlots.class.getName());
++        replaceEnvironmentBean(store.config());
++        store.start();
++
++        JTAStoreBase.setup(SlotStoreAdaptor.class.getName());
++    }
++
++    @TearDown
++    public static void tearDown() {
++        store.stop();
++    }
++
++    @Benchmark
++    public void testInfinispanStore(Blackhole bh) throws HeuristicRollbackException, SystemException, HeuristicMixedException, NotSupportedException, RollbackException {
++        bh.consume(super.jtaTest());
++    }
++}
+\ No newline at end of file
+diff --git a/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreRestartBenchmark.java b/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreRestartBenchmark.java
+new file mode 100644
+index 0000000..638e6d8
+--- /dev/null
++++ b/narayana/ArjunaJTA/jta/tests/classes/com/arjuna/ats/jta/xa/performance/InfinispanSlotsStoreRestartBenchmark.java
+@@ -0,0 +1,193 @@
++/*
++ * Copyright The Narayana Authors
++ * SPDX short identifier: Apache-2.0
++ */
++
++package com.arjuna.ats.jta.xa.performance;
++
++import com.arjuna.ats.arjuna.common.CoreEnvironmentBeanException;
++import org.infinispan.commons.marshall.WrappedByteArray;
++import org.infinispan.configuration.cache.CacheMode;
++import org.infinispan.configuration.cache.ConfigurationBuilder;
++import org.infinispan.configuration.global.GlobalConfigurationBuilder;
++import org.infinispan.conflict.MergePolicy;
++import org.infinispan.distribution.group.Grouper;
++import org.infinispan.manager.DefaultCacheManager;
++import org.infinispan.partitionhandling.PartitionHandling;
++import org.junit.Assert;
++import org.openjdk.jmh.annotations.Benchmark;
++import org.openjdk.jmh.annotations.BenchmarkMode;
++import org.openjdk.jmh.annotations.Fork;
++import org.openjdk.jmh.annotations.Level;
++import org.openjdk.jmh.annotations.Measurement;
++import org.openjdk.jmh.annotations.Mode;
++import org.openjdk.jmh.annotations.OutputTimeUnit;
++import org.openjdk.jmh.annotations.Scope;
++import org.openjdk.jmh.annotations.Setup;
++import org.openjdk.jmh.annotations.State;
++import org.openjdk.jmh.annotations.TearDown;
++import org.openjdk.jmh.annotations.Threads;
++import org.openjdk.jmh.annotations.Warmup;
++import org.openjdk.jmh.runner.RunnerException;
++import org.openjdk.jmh.runner.options.CommandLineOptionException;
++
++import java.io.IOException;
++import java.nio.file.Files;
++import java.util.concurrent.TimeUnit;
++
++// this benchmark verifies that the write through caching feature of infinispan is operational
++// the feature is needed for a fair comparison against other object store types
++@State(Scope.Benchmark)
++public class InfinispanSlotsStoreRestartBenchmark extends InfinispanSlotsStoreBase {
++    // the name of the cluster and the shared cache used for the object store
++    static final String CLUSTER_NAME = "objectStoreCluster";
++
++    public static void main(String[] args) throws RunnerException, CommandLineOptionException, CoreEnvironmentBeanException {
++        JMHConfigJTA.runJTABenchmark(InfinispanSlotsStoreRestartBenchmark.class.getSimpleName(), args);
++    }
++
++    static DefaultCacheManager createCacheManager(String nodeName,
++                                                  CacheMode cacheMode,
++                                                  int numOwners, // used with CacheMode.CacheMode
++                                                  Grouper<WrappedByteArray> grouper,
++                                                  boolean persistence,
++                                                  boolean partitionResilience) {
++        GlobalConfigurationBuilder globalConfig = GlobalConfigurationBuilder.defaultClusteredBuilder();
++
++        globalConfig.transport().nodeName(nodeName).machineId(nodeName)
++                .clusterName(CLUSTER_NAME);//.addProperty("configurationFile", "jgroups.xml");
++
++        var manager = new DefaultCacheManager(globalConfig.build());
++        var storeDir = String.format("%s/%s", STORE_DIR, nodeName);
++
++        // Define the replicated cache configuration
++        ConfigurationBuilder cacheConfig = new ConfigurationBuilder();
++        cacheConfig
++                .clustering()
++                .cacheMode(cacheMode)
++                .remoteTimeout(5, TimeUnit.SECONDS);
++
++        if (numOwners > 0) {
++            cacheConfig
++                    .clustering()
++                    .hash()
++                    .numOwners(numOwners); // number of cluster-wide replicas for each cache entry
++        }
++        if (grouper != null) {
++            cacheConfig
++                    .clustering()
++                    .hash().groups().enabled().addGrouper(grouper);
++        }
++        if (persistence) {
++            cacheConfig
++                    .clustering()
++                    .persistence()
++                    .passivation(false)
++                    .addSoftIndexFileStore()
++                    .dataLocation(storeDir + "/data")
++                    .indexLocation(storeDir + "/index")
++                    .shared(false);
++        }
++        if (partitionResilience) {
++            cacheConfig
++                    .clustering()
++                    .partitionHandling()
++                    .whenSplit(PartitionHandling.DENY_READ_WRITES)
++                    .mergePolicy(MergePolicy.PREFERRED_ALWAYS);
++        }
++
++        manager.defineConfiguration(CLUSTER_NAME, cacheConfig.build());
++
++        return manager;
++    }
++
++    @State(Scope.Benchmark)
++    public static class SlotStoreBenchmarkState {
++        Store store1;
++        Store store2;
++
++        @Setup(Level.Trial)
++        public void doSetup() {
++            store1 = new Store(createCacheManager("node1", CacheMode.REPL_SYNC, -1, null, true, false), null, "node1");
++            store2 = new Store(createCacheManager("node2", CacheMode.REPL_SYNC, -1, null, true, false), null, "node2");
++
++            store1.manager().getCache(CLUSTER_NAME).clear(); // start clean
++            store2.manager().getCache(CLUSTER_NAME).clear(); // start clean
++        }
++
++        @TearDown(Level.Trial)
++        public void tearDown() {
++            try {
++                store1.slots().clear(0, true);
++                store2.slots().clear(1, true);
++            } catch (IOException e) {
++                throw new RuntimeException(e);
++            }
++
++            store1.stop();
++            store2.stop();
++        }
++    }
++
++    @Benchmark
++    @BenchmarkMode(Mode.SingleShotTime)
++    @OutputTimeUnit(TimeUnit.MILLISECONDS)
++    @Threads(1)
++    @Fork(1) // run the benchmark in two processes/JVMs
++    @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.MILLISECONDS)
++    @Measurement(iterations = 1, time = 1, timeUnit = TimeUnit.MILLISECONDS)
++    public void validateWriteThroughCacheIsOperational(SlotStoreBenchmarkState state) throws IOException {
++
++        // create two key value pairs
++        record KVPair(byte[] key, byte[] value) {}
++        KVPair kv1 = new KVPair("key1".getBytes(), "value1".getBytes());
++        KVPair kv2 = new KVPair("key2".getBytes(), "value2".getBytes());
++
++        // populate the first infinispan cache with them
++        state.store1.cache().put(kv1.key, kv1.value);
++        state.store1.cache().put(kv2.key, kv2.value);
++
++        // make sure to start the store after updating the infinispan caches, then starting the store will
++        // load the keys just were added.
++        state.store1.start();
++        state.store2.start();
++
++        // and check that the infinispan filesystem persistence store was created at both nodes
++        Assert.assertTrue("infinispan persistence store 1 was not created: " + state.store1.path(), Files.exists(state.store1.path()));
++        Assert.assertTrue("infinispan persistence store 2 was not created: " + state.store2.path(), Files.exists(state.store2.path()));
++
++        // verify that the slot stores at each node have the same values
++        // note that the slots backend is internal, but it's still useful to test it directly
++        byte[] value1 = state.store1.slots().read(0);
++        byte[] value2 = state.store2.slots().read(0);
++        byte[] value3 = state.store1.slots().read(1);
++        byte[] value4 = state.store2.slots().read(1);
++
++        Assert.assertArrayEquals(value1, value2);
++        Assert.assertArrayEquals(value3, value4);
++
++        // stop both nodes
++        state.store1.stop();
++        state.store2.stop();
++
++        /*
++         * All nodes are now down so we know none of the data can be in-memory.
++         * Restart them and verify that they repopulated their caches
++         * from the filesystem backing stores on their respective nodes
++         */
++        state.store1 = new InfinispanSlotsStoreRestartBenchmark.Store(createCacheManager("node1", CacheMode.REPL_SYNC, -1, null, true, false), null, "node1");
++        state.store2 = new InfinispanSlotsStoreRestartBenchmark.Store(createCacheManager("node2", CacheMode.REPL_SYNC, -1, null, true, false), null, "node2");
++
++        state.store1.start();
++        state.store2.start();
++
++        Assert.assertArrayEquals(kv1.value, state.store1.cache().get(kv1.key));
++        Assert.assertArrayEquals(kv1.value, state.store2.cache().get(kv1.key));
++        Assert.assertArrayEquals(kv2.value, state.store1.cache().get(kv2.key));
++        Assert.assertArrayEquals(kv2.value, state.store2.cache().get(kv2.key));
++
++        // and similarly check that the slot stores are repopulated correctly
++        Assert.assertArrayEquals(state.store1.slots().read(0), state.store2.slots().read(0));
++        Assert.assertArrayEquals(state.store1.slots().read(1), state.store2.slots().read(1));
++    }
++}
+\ No newline at end of file
+diff --git a/narayana/pom.xml b/narayana/pom.xml
+index ddebd93..fe38623 100644
+--- a/narayana/pom.xml
++++ b/narayana/pom.xml
+@@ -30,13 +30,14 @@
+     </licenses>
+ 
+     <properties>
+-        <maven.compiler.source>17</maven.compiler.source>
+-        <maven.compiler.target>17</maven.compiler.target>
++        <maven.compiler.source>25</maven.compiler.source>
++        <maven.compiler.target>25</maven.compiler.target>
+         <jmh.version>1.37</jmh.version>
+         <version.org.jboss.spec.javax.transaction>1.0.0.Final</version.org.jboss.spec.javax.transaction>
+         <version.org.jboss.jboss-transaction-spi>7.6.1.Final</version.org.jboss.jboss-transaction-spi>
+         <version.junit>[4.13.1,)</version.junit>
+ 	    <version.org.apache.activemq>2.19.0</version.org.apache.activemq>
++        <version.infinispan>16.0.5</version.infinispan>
+         <version.org.wildfly.checkstyle-config>1.0.8.Final</version.org.wildfly.checkstyle-config>
+         <skip.checkstyle>false</skip.checkstyle>
+         <version.io.netty>4.1.79.Final</version.io.netty>
+@@ -173,6 +174,13 @@
+                 <artifactId>artemis-journal</artifactId>
+                 <version>${version.org.apache.activemq}</version>
+             </dependency>
++            <dependency>
++                <groupId>org.infinispan</groupId>
++                <artifactId>infinispan-bom</artifactId>
++                <version>${version.infinispan}</version>
++                <type>pom</type>
++                <scope>import</scope>
++            </dependency>
+         </dependencies>
+     </dependencyManagement>
+     <dependencies>
+-- 
+2.53.0
+
