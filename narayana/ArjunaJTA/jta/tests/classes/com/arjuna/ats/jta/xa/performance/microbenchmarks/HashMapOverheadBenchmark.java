@@ -21,6 +21,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -68,8 +69,8 @@ public class HashMapOverheadBenchmark {
     @Benchmark
     @Threads(10)
     public void twoLevelHashMap_write(Blackhole bh) {
-        String typeName = typeNames[(int)(Math.random() * typeNames.length)];
-        Uid uid = uids[(int)(Math.random() * uids.length)];
+        String typeName = typeNames[ThreadLocalRandom.current().nextInt(typeNames.length)];
+        Uid uid = uids[ThreadLocalRandom.current().nextInt(uids.length)];
 
         ConcurrentHashMap<Uid, byte[]> innerMap = twoLevelMap.get(typeName);
         byte[] previous = innerMap.put(uid, testData);
@@ -79,8 +80,8 @@ public class HashMapOverheadBenchmark {
     @Benchmark
     @Threads(10)
     public void oneLevelHashMap_write(Blackhole bh) {
-        String typeName = typeNames[(int)(Math.random() * typeNames.length)];
-        Uid uid = uids[(int)(Math.random() * uids.length)];
+        String typeName = typeNames[ThreadLocalRandom.current().nextInt(typeNames.length)];
+        Uid uid = uids[ThreadLocalRandom.current().nextInt(uids.length)];
 
         String key = typeName + "#" + uid.toString();
         byte[] previous = oneLevelMap.put(key, testData);
@@ -90,8 +91,8 @@ public class HashMapOverheadBenchmark {
     @Benchmark
     @Threads(10)
     public void twoLevelHashMap_read(Blackhole bh) {
-        String typeName = typeNames[(int)(Math.random() * typeNames.length)];
-        Uid uid = uids[(int)(Math.random() * uids.length)];
+        String typeName = typeNames[ThreadLocalRandom.current().nextInt(typeNames.length)];
+        Uid uid = uids[ThreadLocalRandom.current().nextInt(uids.length)];
 
         ConcurrentHashMap<Uid, byte[]> innerMap = twoLevelMap.get(typeName);
         byte[] data = innerMap.get(uid);
@@ -101,8 +102,8 @@ public class HashMapOverheadBenchmark {
     @Benchmark
     @Threads(10)
     public void oneLevelHashMap_read(Blackhole bh) {
-        String typeName = typeNames[(int)(Math.random() * typeNames.length)];
-        Uid uid = uids[(int)(Math.random() * uids.length)];
+        String typeName = typeNames[ThreadLocalRandom.current().nextInt(typeNames.length)];
+        Uid uid = uids[ThreadLocalRandom.current().nextInt(uids.length)];
 
         String key = typeName + "#" + uid.toString();
         byte[] data = oneLevelMap.get(key);
