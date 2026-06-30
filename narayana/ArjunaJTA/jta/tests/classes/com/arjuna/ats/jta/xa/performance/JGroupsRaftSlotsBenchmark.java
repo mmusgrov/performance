@@ -6,6 +6,7 @@
 package com.arjuna.ats.jta.xa.performance;
 
 import com.arjuna.ats.arjuna.common.CoreEnvironmentBeanException;
+import com.arjuna.ats.arjuna.objectstore.StoreManager;
 import com.arjuna.ats.internal.arjuna.objectstore.slot.SlotStoreAdaptor;
 import com.arjuna.ats.internal.arjuna.objectstore.slot.jgroups.JGroupsRaftSlots;
 import com.arjuna.ats.internal.arjuna.objectstore.slot.jgroups.JGroupsStoreEnvironmentBean;
@@ -71,7 +72,6 @@ public class JGroupsRaftSlotsBenchmark extends JTAStoreBase {
                 .warmupTime(TimeValue.seconds(1))
                 .measurementIterations(ITERATIONS)
                 .measurementTime(TimeValue.seconds(TIME_PER_ITER))
-                .param("networkDelay", "0") // don't simulate network using MS_DELAY
                 .shouldDoGC(true)
                 // use JFR as the profiler, the recording will appear in the User working directory with the
                 // name "<package name>-xxx/profile.jfr", which you can change to "wherever" using
@@ -118,8 +118,8 @@ public class JGroupsRaftSlotsBenchmark extends JTAStoreBase {
 
     @TearDown(Level.Trial)
     public static void tearDown() {
+        StoreManager.shutdown();
         JGroupsStoreEnvironmentBean configBean = BeanPopulator.getDefaultInstance(JGroupsStoreEnvironmentBean.class);
-
         cleanStore(Paths.get(configBean.getStoreDir()).toFile());
     }
 

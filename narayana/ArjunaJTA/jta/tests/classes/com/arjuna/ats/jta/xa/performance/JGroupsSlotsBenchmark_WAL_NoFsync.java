@@ -6,6 +6,7 @@
 package com.arjuna.ats.jta.xa.performance;
 
 import com.arjuna.ats.arjuna.common.CoreEnvironmentBeanException;
+import com.arjuna.ats.arjuna.objectstore.StoreManager;
 import com.arjuna.ats.internal.arjuna.objectstore.slot.SlotStoreAdaptor;
 import com.arjuna.ats.internal.arjuna.objectstore.slot.jgroups.JGroupsSlots;
 import com.arjuna.ats.internal.arjuna.objectstore.slot.jgroups.JGroupsStoreEnvironmentBean;
@@ -66,7 +67,6 @@ public class JGroupsSlotsBenchmark_WAL_NoFsync extends JTAStoreBase {
                 .warmupTime(TimeValue.seconds(1))
                 .measurementIterations(ITERATIONS)
                 .measurementTime(TimeValue.seconds(TIME_PER_ITER))
-                .param("networkDelay", "0")
                 .shouldDoGC(true)
                 .addProfiler(JavaFlightRecorderProfiler.class)
                 .jvmArgs("-Djmh.executor=FJP")
@@ -109,6 +109,7 @@ public class JGroupsSlotsBenchmark_WAL_NoFsync extends JTAStoreBase {
 
     @TearDown(Level.Trial)
     public static void tearDown() {
+        StoreManager.shutdown();
         JGroupsStoreEnvironmentBean configBean = BeanPopulator.getDefaultInstance(JGroupsStoreEnvironmentBean.class);
         cleanStore(Paths.get(configBean.getStoreDir()).toFile());
     }
