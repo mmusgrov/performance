@@ -42,18 +42,24 @@ public class SerializationOverheadBenchmark {
     private String testTypeName;
     private byte[] testState;
     private int testStateStatus;
+    private byte[] prePackedHqStore;
 
     @Setup(Level.Trial)
-    public void setup() {
+    public void setup() throws IOException {
         testUid = new Uid();
         testTypeName = "/StateManager/BasicAction/TwoPhaseCoordinator/AtomicAction";
         testState = new byte[512];
         testStateStatus = 0; // OS_COMMITTED
 
-        // Fill with test data
         for (int i = 0; i < testState.length; i++) {
             testState[i] = (byte)i;
         }
+
+        OutputBuffer outBuffer = new OutputBuffer();
+        UidHelper.packInto(testUid, outBuffer);
+        outBuffer.packString(testTypeName);
+        outBuffer.packBytes(testState);
+        prePackedHqStore = outBuffer.buffer();
     }
 
     // HQStore style: Pack Uid + typeName + state
@@ -68,19 +74,11 @@ public class SerializationOverheadBenchmark {
         bh.consume(result);
     }
 
-    // HQStore style: Unpack Uid + typeName + state
+    // HQStore style: Unpack Uid + typeName + state (pre-packed in setup)
     @Benchmark
     @Threads(10)
     public void hqstore_unpack(Blackhole bh) throws IOException {
-        // First pack it
-        OutputBuffer outBuffer = new OutputBuffer();
-        UidHelper.packInto(testUid, outBuffer);
-        outBuffer.packString(testTypeName);
-        outBuffer.packBytes(testState);
-        byte[] packed = outBuffer.buffer();
-
-        // Then unpack it
-        InputBuffer inBuffer = new InputBuffer(packed);
+        InputBuffer inBuffer = new InputBuffer(prePackedHqStore);
         Uid uid = UidHelper.unpackFrom(inBuffer);
         String typeName = inBuffer.unpackString();
         byte[] state = inBuffer.unpackBytes();

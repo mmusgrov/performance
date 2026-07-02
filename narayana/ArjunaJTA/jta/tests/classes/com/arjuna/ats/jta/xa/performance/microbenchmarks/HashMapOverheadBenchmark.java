@@ -51,7 +51,6 @@ public class HashMapOverheadBenchmark {
         twoLevelMap = new ConcurrentHashMap<>();
         oneLevelMap = new ConcurrentHashMap<>();
 
-        // Pre-populate with some data
         typeNames = new String[10];
         uids = new Uid[100];
         testData = new byte[1024];
@@ -63,6 +62,14 @@ public class HashMapOverheadBenchmark {
 
         for (int i = 0; i < uids.length; i++) {
             uids[i] = new Uid();
+        }
+
+        // Pre-populate both maps with matching data so reads hit entries
+        for (String typeName : typeNames) {
+            for (Uid uid : uids) {
+                twoLevelMap.get(typeName).put(uid, testData);
+                oneLevelMap.put(typeName + "#" + uid.toString(), testData);
+            }
         }
     }
 

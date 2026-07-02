@@ -71,12 +71,12 @@ public class RecordInfoOverheadBenchmark {
         bh.consume(data);
     }
 
-    // For comparison: direct byte[] access (no wrapper object)
+    // For comparison: direct byte[] copy (no wrapper object, simulates JGroupsSlots byte[] handling)
     @Benchmark
     @Threads(10)
     public void directByteArrayAccess(Blackhole bh) {
-        // JGroupsSlots just works with byte[] directly
-        byte[] data = testData;
-        bh.consume(data);
+        byte[] copy = new byte[testData.length];
+        System.arraycopy(testData, 0, copy, 0, testData.length);
+        bh.consume(copy);
     }
 }

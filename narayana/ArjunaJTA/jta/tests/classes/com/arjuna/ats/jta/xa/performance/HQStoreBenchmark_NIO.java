@@ -16,17 +16,49 @@ import jakarta.transaction.RollbackException;
 import jakarta.transaction.SystemException;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.RunnerException;
+import org.openjdk.jmh.runner.options.Options;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
+import org.openjdk.jmh.runner.options.TimeValue;
 
 import java.nio.file.Paths;
+import java.util.concurrent.TimeUnit;
 
 @State(Scope.Benchmark)
 public class HQStoreBenchmark_NIO extends JTAStoreBase {
+
+    static final int THREADS = 240;
+    static final String BM_CLASS_NAME = HQStoreBenchmark_NIO.class.getSimpleName();
+
+    static final int FORKS = 1;
+    static final int ITERATIONS = 5;
+    static final int TIME_PER_ITER = 2;
+
+    public static void main(String[] args) throws RunnerException {
+        Options opt = new OptionsBuilder()
+                .include(BM_CLASS_NAME + ".testHQStore")
+                .timeUnit(TimeUnit.SECONDS)
+                .threads(THREADS)
+                .forks(FORKS)
+                .mode(Mode.Throughput)
+                .warmupIterations(2)
+                .warmupTime(TimeValue.seconds(2))
+                .measurementIterations(ITERATIONS)
+                .measurementTime(TimeValue.seconds(TIME_PER_ITER))
+                .shouldDoGC(true)
+                .jvmArgs("-Djmh.executor=FJP")
+                .build();
+
+        new Runner(opt).run();
+    }
 
     @Setup(Level.Trial)
     @BeforeClass
