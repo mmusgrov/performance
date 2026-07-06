@@ -29,10 +29,8 @@ on:
         required: true
         type: choice
         options:
-          - '21'
-          - '17'
-          - '11'
-        default: '21'
+          - '25'
+        default: '25'
       pull_request_repo:
         description: 'Repository to check out'
         required: false
