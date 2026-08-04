@@ -120,6 +120,7 @@ public class JGroupsRaftClusterStoreBenchmark {
         // Phase 2: Create JGroupsRaftSlots with pre-configured channels
         for (int i = 0; i < 3; i++) {
             configs[i] = new JGroupsRaftStoreEnvironmentBean();
+            configs[i].setExperimentalEnabled(true);
             configs[i].setJGroupsConfigFileName("jgroups-raft.xml");
             configs[i].setNodeAddress(NODE_NAMES[i]);
             configs[i].setClusterName(clusterName);
@@ -156,8 +157,20 @@ public class JGroupsRaftClusterStoreBenchmark {
             leaderSlots.write(i, SLOT_DATA, true);
         }
 
-        // Brief pause for replication to followers
-        TimeUnit.MILLISECONDS.sleep(500);
+        // Wait for the follower to apply all replicated entries
+        RAFT leaderRaft = leaderSlots.getChannel().getProtocolStack().findProtocol(RAFT.class);
+        RAFT followerRaft = followerSlots.getChannel().getProtocolStack().findProtocol(RAFT.class);
+        long targetIndex = leaderRaft.commitIndex();
+        long deadline = System.currentTimeMillis() + 10_000;
+
+        while (followerRaft.lastAppended() < targetIndex) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new IllegalStateException(
+                        "Follower replication timed out: lastApplied=" + followerRaft.lastAppended()
+                                + " target=" + targetIndex);
+            }
+            TimeUnit.MILLISECONDS.sleep(50);
+        }
     }
 
     @TearDown(Level.Trial)

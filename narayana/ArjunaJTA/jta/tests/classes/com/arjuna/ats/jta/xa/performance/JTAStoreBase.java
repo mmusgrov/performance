@@ -108,7 +108,9 @@ public class JTAStoreBase {
             tm.commit();
         } catch (Exception e) {
             try {
-                tm.rollback();
+                if (tm.getTransaction() != null) {
+                    tm.rollback();
+                }
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }

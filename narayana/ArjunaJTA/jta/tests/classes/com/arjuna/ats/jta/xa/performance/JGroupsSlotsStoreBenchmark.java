@@ -82,6 +82,7 @@ public class JGroupsSlotsStoreBenchmark extends JTAStoreBase {
     public static void setup() throws CoreEnvironmentBeanException {
         JTAStoreBase.setup(SlotStoreAdaptor.class.getName());
         JGroupsStoreEnvironmentBean configBean = BeanPopulator.getDefaultInstance(JGroupsStoreEnvironmentBean.class);
+        configBean.setExperimentalEnabled(true);
         SlotStoreEnvironmentBean slotStoreBean = BeanPopulator.getDefaultInstance(SlotStoreEnvironmentBean.class);
         slotStoreBean.setBackingSlotsClassName(JGroupsSlots.class.getName());
         int threadCount = getThreadCountFromProperties(THREADS);

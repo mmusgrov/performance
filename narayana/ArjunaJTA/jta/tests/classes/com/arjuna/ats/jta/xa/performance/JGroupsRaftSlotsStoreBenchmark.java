@@ -94,6 +94,7 @@ public class JGroupsRaftSlotsStoreBenchmark extends JTAStoreBase {
     public static void setup() throws CoreEnvironmentBeanException {
         JTAStoreBase.setup(SlotStoreAdaptor.class.getName());
         JGroupsRaftStoreEnvironmentBean configBean = BeanPopulator.getDefaultInstance(JGroupsRaftStoreEnvironmentBean.class);
+        configBean.setExperimentalEnabled(true);
         SlotStoreEnvironmentBean slotStoreBean = BeanPopulator.getDefaultInstance(SlotStoreEnvironmentBean.class);
         slotStoreBean.setBackingSlotsClassName(JGroupsRaftSlots.class.getName());
         int threadCount = getThreadCountFromProperties(THREADS);
